@@ -4,6 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>방초매트 발주 계산기 (FM / FM+5%)</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b1220">
+
+  <!-- html2canvas (이미지 저장용) -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif;margin:0;background:#0b1220;color:#e8f0ff}
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
@@ -14,6 +22,7 @@
     input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #213252;background:#0c1426;color:#e8f0ff;font-size:15px}
     button{border:1px solid #213252;background:#0c1426;color:#e8f0ff;padding:10px 12px;border-radius:10px;cursor:pointer}
     button.primary{background:#4aa3ff;border-color:transparent;color:#041022;font-weight:800}
+    button.warn{background:#ffcc66;border-color:transparent;color:#201400;font-weight:800}
     table{width:100%;border-collapse:collapse;margin-top:10px}
     th,td{border-bottom:1px solid #213252;padding:10px 8px;text-align:right;font-size:13px}
     th:first-child,td:first-child{text-align:left}
@@ -23,42 +32,70 @@
     .muted{color:#9bb0d1;font-size:12px;line-height:1.4}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media(max-width:900px){.grid{grid-template-columns:1fr}}
+    .hidden{display:none !important}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .hr{height:1px;background:#213252;margin:10px 0}
+    .small{font-size:12px;color:#9bb0d1}
   </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap hidden" id="app">
   <h2>방초매트 발주 계산기 <span class="pill">FM · FM+5% 동시</span></h2>
-  <div class="muted">로그인 없이 사용 가능. 관리자 설정은 간단 비밀번호(현장용)입니다.</div>
+  <div class="muted">로그인 없이 사용. 단가/계수는 “이 기기”에만 저장됩니다(외부 노출 최소화).</div>
 
   <div class="card row">
     <div>
       <label>공사구간 (m)</label>
       <input id="len" type="number" min="0" step="1" value="1000" />
     </div>
+
     <div>
       <label>재고(포장단위) 입력</label>
+
       <div class="row">
-        <input id="st_mat" type="number" min="0" step="1" value="0" placeholder="방초매트(롤)" />
-        <input id="st_holder" type="number" min="0" step="1" value="0" placeholder="홀더(자루)" />
+        <div>
+          <label class="small">방초매트 (롤)</label>
+          <input id="st_mat" type="number" min="0" step="1" value="0" />
+        </div>
+        <div>
+          <label class="small">홀더 (자루, 50개)</label>
+          <input id="st_holder" type="number" min="0" step="1" value="0" />
+        </div>
       </div>
+
       <div class="row" style="margin-top:10px;">
-        <input id="st_pack" type="number" min="0" step="1" value="0" placeholder="팩(자루)" />
-        <input id="st_sil" type="number" min="0" step="1" value="0" placeholder="실리콘(박스)" />
+        <div>
+          <label class="small">팩 (자루, 500개)</label>
+          <input id="st_pack" type="number" min="0" step="1" value="0" />
+        </div>
+        <div>
+          <label class="small">실리콘 (박스, 25개)</label>
+          <input id="st_sil" type="number" min="0" step="1" value="0" />
+        </div>
       </div>
+
       <div class="row" style="margin-top:10px;">
-        <input id="st_gas" type="number" min="0" step="1" value="0" placeholder="힐티가스(캔)" />
-        <input id="st_pin" type="number" min="0" step="1" value="0" placeholder="힐티핀(통)" />
+        <div>
+          <label class="small">힐티가스 (캔)</label>
+          <input id="st_gas" type="number" min="0" step="1" value="0" />
+        </div>
+        <div>
+          <label class="small">힐티핀 (통, 1200발)</label>
+          <input id="st_pin" type="number" min="0" step="1" value="0" />
+        </div>
       </div>
     </div>
 
-    <div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+    <div style="grid-column:1/-1" class="toolbar">
       <button class="primary" onclick="recalc()">계산</button>
-      <button onclick="openAdmin()">관리자 설정</button>
-      <button onclick="resetDefaults()">기본값 복원</button>
+      <button onclick="openAdmin()">단가/계수 설정(1004)</button>
+      <button onclick="resetLocal()">이 기기 초기화</button>
+      <button class="warn" onclick="printReport()">보고서 출력(PDF)</button>
+      <button onclick="saveImage()">이미지 저장(PNG)</button>
     </div>
   </div>
 
-  <div class="grid">
+  <div class="grid" id="resultArea">
     <div class="card">
       <div class="pill">FM 결과</div>
       <div id="fm"></div>
@@ -74,29 +111,51 @@
     <div id="sum"></div>
   </div>
 
-  <div class="muted">규칙: 필요수량/발주단위 올림. 추가발주=MAX(0,발주단위-재고). 힐티가스=핀 통수와 동일 가정.</div>
+  <div class="muted">
+    규칙: 필요수량/발주단위 올림. 추가발주=MAX(0,발주단위-재고).<br>
+    힐티핀/가스: <b>핀은 통(1200발) 기준 올림</b>, 가스는 <b>통수와 동일</b>(세트 개념). 금액은 통/캔 단위로만 계산해서 소수점 제거.
+  </div>
 </div>
 
 <script>
-const DEFAULT = {
-  passcode: "0000",
+/** ================================
+ *  보안/노출 최소화 설계
+ *  - 단가/계수는 코드에 "0/미설정"으로만 존재
+ *  - 최초 1회(1004) 입력 후 localStorage에 저장
+ *  - 공개 URL을 누가 열어도 단가가 기본값(0)이라 의미있는 노출이 없음
+ * ================================ */
+
+const PASSCODE = "1004"; // 차장님 지정
+
+// “기본값”은 단가/계수 미설정 상태(0)로 둡니다.
+const DEFAULT_CFG = {
+  is_setup_done: false,
+
   coeff: {
     FM:  { mat:1.0, holder:0.333, pack:3.0,  sil:0.2,  pin:4.0 },
     FM5: { mat:1.0, holder:0.35,  pack:3.15, sil:0.21, pin:4.2 }
   },
   pack:  { mat:50, holder:50, pack:500, sil:25, pin:1200 },
-  price: { mat:3960, holder:715, pack:330, sil:1700, gas:80850, pin_tong:51150 }
+
+  // 단가(VAT포함) - 최초 1회 설정 전에는 0
+  price: { mat:0, holder:0, pack:0, sil:0, gas:0, pin_tong:0 }
 };
 
 function loadCfg(){
-  const raw = localStorage.getItem("bangcho_cfg");
-  if(!raw) return structuredClone(DEFAULT);
-  try { return Object.assign(structuredClone(DEFAULT), JSON.parse(raw)); }
-  catch(e){ return structuredClone(DEFAULT); }
+  const raw = localStorage.getItem("bangcho_cfg_v2");
+  if(!raw) return structuredClone(DEFAULT_CFG);
+  try {
+    const parsed = JSON.parse(raw);
+    // 기본 구조 보강
+    return Object.assign(structuredClone(DEFAULT_CFG), parsed);
+  } catch(e){
+    return structuredClone(DEFAULT_CFG);
+  }
 }
-function saveCfg(cfg){ localStorage.setItem("bangcho_cfg", JSON.stringify(cfg)); }
+function saveCfg(cfg){ localStorage.setItem("bangcho_cfg_v2", JSON.stringify(cfg)); }
+
 const ceil = (x)=>Math.ceil(Number(x)||0);
-const money = (n)=>(Number(n)||0).toLocaleString("ko-KR");
+const money = (n)=> (Number(n)||0).toLocaleString("ko-KR");
 
 function stocks(){
   return {
@@ -105,22 +164,31 @@ function stocks(){
   };
 }
 
+// 단가 미설정(0)인 항목은 “—” 표시로 처리하고 합계에도 미반영할지 여부
+const EXCLUDE_ZERO_PRICE_FROM_SUM = false; // 원하시면 true로 변경 가능
+
 function compute(mode, len, cfg, st){
   const c=cfg.coeff[mode], pk=cfg.pack, pr=cfg.price;
 
+  // 필요수량(개수/발수) 올림
   const need_mat=ceil(len*c.mat);
   const need_holder=ceil(len*c.holder);
   const need_pack=ceil(len*c.pack);
   const need_sil=ceil(len*c.sil);
   const need_pin=ceil(len*c.pin);
 
+  // 발주단위(포장단위) 올림
   const ord_mat=ceil(need_mat/pk.mat);
   const ord_holder=ceil(need_holder/pk.holder);
   const ord_pack=ceil(need_pack/pk.pack);
   const ord_sil=ceil(need_sil/pk.sil);
+
+  // 힐티핀은 "통" 기준 올림(1200발)
   const ord_pin=ceil(need_pin/pk.pin);
+  // 가스는 핀 통수와 동일(세트)
   const ord_gas=ord_pin;
 
+  // 추가발주(포장단위)
   const add_mat=Math.max(0,ord_mat-st.mat);
   const add_holder=Math.max(0,ord_holder-st.holder);
   const add_pack=Math.max(0,ord_pack-st.pack);
@@ -128,21 +196,27 @@ function compute(mode, len, cfg, st){
   const add_pin=Math.max(0,ord_pin-st.pin);
   const add_gas=Math.max(0,ord_gas-st.gas);
 
+  // 금액 계산
+  // 방초/홀더/팩/실리콘: 필요수량 기준 + 추가발주(포장단위) 기준 둘 다 표시
+  // 힐티: "발주단위(통/캔)" 기준 금액만 의미 있게 계산(소수점 방지)
   const need_amt = {
-    mat: need_mat*pr.mat,
-    holder: need_holder*pr.holder,
-    pack: need_pack*pr.pack,
-    sil: need_sil*pr.sil,
-    gas: ord_gas*pr.gas,
-    pin: (need_pin/pk.pin)*pr.pin_tong
+    mat: (pr.mat>0 ? need_mat*pr.mat : 0),
+    holder: (pr.holder>0 ? need_holder*pr.holder : 0),
+    pack: (pr.pack>0 ? need_pack*pr.pack : 0),
+    sil: (pr.sil>0 ? need_sil*pr.sil : 0),
+
+    gas: (pr.gas>0 ? ord_gas*pr.gas : 0),
+    pin: (pr.pin_tong>0 ? ord_pin*pr.pin_tong : 0)
   };
+
   const add_amt = {
-    mat: add_mat*pk.mat*pr.mat,
-    holder: add_holder*pk.holder*pr.holder,
-    pack: add_pack*pk.pack*pr.pack,
-    sil: add_sil*pk.sil*pr.sil,
-    gas: add_gas*pr.gas,
-    pin: add_pin*pr.pin_tong
+    mat: (pr.mat>0 ? add_mat*pk.mat*pr.mat : 0),
+    holder: (pr.holder>0 ? add_holder*pk.holder*pr.holder : 0),
+    pack: (pr.pack>0 ? add_pack*pk.pack*pr.pack : 0),
+    sil: (pr.sil>0 ? add_sil*pk.sil*pr.sil : 0),
+
+    gas: (pr.gas>0 ? add_gas*pr.gas : 0),
+    pin: (pr.pin_tong>0 ? add_pin*pr.pin_tong : 0)
   };
 
   const rows = [
@@ -154,15 +228,31 @@ function compute(mode, len, cfg, st){
     ["힐티핀", need_pin, "발", ord_pin, "통", st.pin, add_pin, pr.pin_tong, need_amt.pin, add_amt.pin],
   ];
 
-  const sumNeed = Object.values(need_amt).reduce((a,b)=>a+(Number(b)||0),0);
-  const sumAdd  = Object.values(add_amt).reduce((a,b)=>a+(Number(b)||0),0);
+  // 합계 (단가 0이면 합계 포함 여부 옵션)
+  function sumObj(obj){
+    if(!EXCLUDE_ZERO_PRICE_FROM_SUM) return Object.values(obj).reduce((a,b)=>a+(Number(b)||0),0);
+    // 단가가 0인 항목의 금액(0)을 그냥 더해도 같긴 한데, 향후 “—” 처리 시를 대비해 분기 유지
+    return Object.values(obj).reduce((a,b)=>a+(Number(b)||0),0);
+  }
+
+  const sumNeed = sumObj(need_amt);
+  const sumAdd  = sumObj(add_amt);
   return { rows, sumNeed, sumAdd };
+}
+
+function fmtPriceCell(p){
+  return (Number(p)||0) > 0 ? money(p) : "—";
+}
+function fmtMoneyCell(v, p){
+  // 단가 0이면 금액 표시도 —
+  return (Number(p)||0) > 0 ? money(v) : "—";
 }
 
 function render(el, res){
   const heads=["자재","필요수량","단위","발주단위","단위","재고","추가발주","단가(VAT)","필요금액","추가발주금액"];
   let h="<table><thead><tr>"+heads.map(x=>`<th>${x}</th>`).join("")+"</tr></thead><tbody>";
   for(const r of res.rows){
+    const unitPrice = r[7];
     h += "<tr>"
       + `<td>${r[0]}</td>`
       + `<td>${money(r[1])}</td>`
@@ -171,9 +261,9 @@ function render(el, res){
       + `<td>${r[4]}</td>`
       + `<td>${money(r[5])}</td>`
       + `<td><b>${money(r[6])}</b></td>`
-      + `<td>${money(r[7])}</td>`
-      + `<td>${money(r[8])}</td>`
-      + `<td><b>${money(r[9])}</b></td>`
+      + `<td>${fmtPriceCell(unitPrice)}</td>`
+      + `<td>${fmtMoneyCell(r[8], unitPrice)}</td>`
+      + `<td><b>${fmtMoneyCell(r[9], unitPrice)}</b></td>`
       + "</tr>";
   }
   h += `</tbody><tfoot><tr><td colspan="8">합계</td><td>${money(res.sumNeed)}</td><td>${money(res.sumAdd)}</td></tr></tfoot></table>`;
@@ -188,6 +278,7 @@ function recalc(){
   const b=compute("FM5", L, cfg, st);
   render(fm, a);
   render(fm5, b);
+
   sum.innerHTML = `<table>
     <thead><tr><th></th><th>FM</th><th>FM+5%</th></tr></thead>
     <tbody>
@@ -196,26 +287,124 @@ function recalc(){
     </tbody></table>`;
 }
 
-function openAdmin(){
-  const cfg=loadCfg();
-  const pw=prompt("관리자 비밀번호 (기본 0000)");
-  if(pw!==cfg.passcode){ alert("비밀번호가 올바르지 않습니다."); return; }
+/** ===== 최초 1회 세팅 강제 + 실행 비번 ===== */
+function requireAccessAndSetup(){
+  const cfg = loadCfg();
 
-  // 아주 간단한 관리자 UI(프롬프트)
-  const newPw = prompt("비밀번호 변경(그대로 두려면 빈칸)", "");
-  if(newPw) cfg.passcode = String(newPw);
+  // 실행 비번(간단 잠금)
+  const pw = prompt("비밀번호를 입력하세요.");
+  if(pw !== PASSCODE){
+    alert("비밀번호가 올바르지 않습니다.");
+    // 접근 차단: 그냥 빈 화면 유지
+    return;
+  }
 
-  alert("계수/단가/포장단위 수정은 파일 내부 DEFAULT를 바꾸거나, 필요하면 관리자 화면(별도)로 확장 가능합니다.\n현재는 ‘계산만 + 로그인 없음’ 최우선 구성입니다.");
-  saveCfg(cfg);
-}
+  // 최초 1회 설정 강제
+  if(!cfg.is_setup_done){
+    alert("최초 1회 단가/계수 설정이 필요합니다. (이 기기만 저장)");
+    openAdmin(true);
+  }
 
-function resetDefaults(){
-  localStorage.removeItem("bangcho_cfg");
+  // 앱 표시
+  app.classList.remove("hidden");
   recalc();
-  alert("기본값으로 복원했습니다.");
 }
 
-window.addEventListener("load", recalc);
+/** ===== 관리자 설정(1004) ===== */
+function openAdmin(force=false){
+  const cfg=loadCfg();
+
+  const pw = prompt("관리자 비밀번호(1004)");
+  if(pw !== PASSCODE){
+    alert("비밀번호가 올바르지 않습니다.");
+    return;
+  }
+
+  // 계수 입력(필요 시만 조정)
+  const fm_holder = prompt("FM 홀더(개/m) (기본 0.333)", cfg.coeff.FM.holder);
+  const fm_pack   = prompt("FM 팩(개/m) (기본 3.0)", cfg.coeff.FM.pack);
+  const fm_sil    = prompt("FM 실리콘(개/m) (기본 0.2)", cfg.coeff.FM.sil);
+  const fm_pin    = prompt("FM 힐티핀(발/m) (기본 4.0)", cfg.coeff.FM.pin);
+
+  const fm5_holder = prompt("FM+5% 홀더(개/m) (기본 0.35)", cfg.coeff.FM5.holder);
+  const fm5_pack   = prompt("FM+5% 팩(개/m) (기본 3.15)", cfg.coeff.FM5.pack);
+  const fm5_sil    = prompt("FM+5% 실리콘(개/m) (기본 0.21)", cfg.coeff.FM5.sil);
+  const fm5_pin    = prompt("FM+5% 힐티핀(발/m) (기본 4.2)", cfg.coeff.FM5.pin);
+
+  cfg.coeff.FM.holder = Number(fm_holder)||cfg.coeff.FM.holder;
+  cfg.coeff.FM.pack   = Number(fm_pack)||cfg.coeff.FM.pack;
+  cfg.coeff.FM.sil    = Number(fm_sil)||cfg.coeff.FM.sil;
+  cfg.coeff.FM.pin    = Number(fm_pin)||cfg.coeff.FM.pin;
+
+  cfg.coeff.FM5.holder = Number(fm5_holder)||cfg.coeff.FM5.holder;
+  cfg.coeff.FM5.pack   = Number(fm5_pack)||cfg.coeff.FM5.pack;
+  cfg.coeff.FM5.sil    = Number(fm5_sil)||cfg.coeff.FM5.sil;
+  cfg.coeff.FM5.pin    = Number(fm5_pin)||cfg.coeff.FM5.pin;
+
+  alert("이제 단가(VAT포함)를 입력합니다. (0이면 금액은 — 로 표시됨)");
+
+  // 단가 입력(모두 VAT 포함)
+  const p_mat = prompt("방초매트 단가 (원/m, VAT포함)", cfg.price.mat);
+  const p_holder = prompt("홀더 단가 (원/개, VAT포함)", cfg.price.holder);
+  const p_pack = prompt("팩 단가 (원/개, VAT포함)", cfg.price.pack);
+  const p_sil = prompt("실리콘 단가 (원/개, VAT포함)", cfg.price.sil);
+  const p_gas = prompt("힐티가스 GC42 단가 (원/캔, VAT포함)", cfg.price.gas);
+  const p_pin = prompt("힐티핀 X-C 20 G3 MX 단가 (원/통=1200발, VAT포함)", cfg.price.pin_tong);
+
+  cfg.price.mat = Number(p_mat)||0;
+  cfg.price.holder = Number(p_holder)||0;
+  cfg.price.pack = Number(p_pack)||0;
+  cfg.price.sil = Number(p_sil)||0;
+  cfg.price.gas = Number(p_gas)||0;
+  cfg.price.pin_tong = Number(p_pin)||0;
+
+  // 최소 요건: 단가가 전부 0이면 세팅 완료로 보지 않음(강제 유지)
+  const anyPrice = Object.values(cfg.price).some(v => Number(v)>0);
+
+  if(anyPrice){
+    cfg.is_setup_done = true;
+    saveCfg(cfg);
+    alert("저장 완료! 이 기기에만 적용됩니다.");
+    app.classList.remove("hidden");
+    recalc();
+  }else{
+    saveCfg(cfg);
+    alert("단가가 모두 0원이라 세팅 완료 처리되지 않았습니다. (다시 설정 필요)");
+    if(force) openAdmin(true);
+  }
+}
+
+function resetLocal(){
+  if(!confirm("이 기기 저장값(단가/계수/설정)을 초기화할까요?")) return;
+  localStorage.removeItem("bangcho_cfg_v2");
+  alert("초기화 완료. 새로고침 후 다시 비번/세팅이 필요합니다.");
+  location.reload();
+}
+
+/** ===== 보고서 출력(PDF) ===== */
+function printReport(){
+  // 인쇄용은 브라우저의 “PDF로 저장” 사용
+  window.print();
+}
+
+/** ===== 이미지 저장(PNG) ===== */
+async function saveImage(){
+  const area = document.getElementById("resultArea");
+  const canvas = await html2canvas(area, {backgroundColor: "#0b1220", scale: 2});
+  const link = document.createElement("a");
+  link.download = `bangcho_report_${new Date().toISOString().slice(0,10)}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+/** ===== PWA: 서비스 워커 등록 ===== */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=> {
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  });
+}
+
+window.addEventListener("load", requireAccessAndSetup);
 </script>
 </body>
 </html>

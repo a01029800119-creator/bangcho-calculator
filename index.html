@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>방초매트 발주 계산기 (FM / FM+5%)</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif;margin:0;background:#0b1220;color:#e8f0ff}
+    .wrap{max-width:1100px;margin:0 auto;padding:18px}
+    .card{background:#101a2f;border:1px solid #213252;border-radius:14px;padding:14px;margin:10px 0}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media(max-width:900px){.row{grid-template-columns:1fr}}
+    label{display:block;color:#9bb0d1;font-size:13px;margin:8px 0 6px}
+    input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #213252;background:#0c1426;color:#e8f0ff;font-size:15px}
+    button{border:1px solid #213252;background:#0c1426;color:#e8f0ff;padding:10px 12px;border-radius:10px;cursor:pointer}
+    button.primary{background:#4aa3ff;border-color:transparent;color:#041022;font-weight:800}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border-bottom:1px solid #213252;padding:10px 8px;text-align:right;font-size:13px}
+    th:first-child,td:first-child{text-align:left}
+    th{color:#9bb0d1;font-weight:600}
+    tfoot td{font-weight:900}
+    .pill{display:inline-block;border:1px solid #213252;border-radius:999px;padding:6px 10px;color:#9bb0d1;font-size:12px}
+    .muted{color:#9bb0d1;font-size:12px;line-height:1.4}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h2>방초매트 발주 계산기 <span class="pill">FM · FM+5% 동시</span></h2>
+  <div class="muted">로그인 없이 사용 가능. 관리자 설정은 간단 비밀번호(현장용)입니다.</div>
+
+  <div class="card row">
+    <div>
+      <label>공사구간 (m)</label>
+      <input id="len" type="number" min="0" step="1" value="1000" />
+    </div>
+    <div>
+      <label>재고(포장단위) 입력</label>
+      <div class="row">
+        <input id="st_mat" type="number" min="0" step="1" value="0" placeholder="방초매트(롤)" />
+        <input id="st_holder" type="number" min="0" step="1" value="0" placeholder="홀더(자루)" />
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <input id="st_pack" type="number" min="0" step="1" value="0" placeholder="팩(자루)" />
+        <input id="st_sil" type="number" min="0" step="1" value="0" placeholder="실리콘(박스)" />
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <input id="st_gas" type="number" min="0" step="1" value="0" placeholder="힐티가스(캔)" />
+        <input id="st_pin" type="number" min="0" step="1" value="0" placeholder="힐티핀(통)" />
+      </div>
+    </div>
+
+    <div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      <button class="primary" onclick="recalc()">계산</button>
+      <button onclick="openAdmin()">관리자 설정</button>
+      <button onclick="resetDefaults()">기본값 복원</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="pill">FM 결과</div>
+      <div id="fm"></div>
+    </div>
+    <div class="card">
+      <div class="pill">FM+5% 결과</div>
+      <div id="fm5"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="pill">요약</div>
+    <div id="sum"></div>
+  </div>
+
+  <div class="muted">규칙: 필요수량/발주단위 올림. 추가발주=MAX(0,발주단위-재고). 힐티가스=핀 통수와 동일 가정.</div>
+</div>
+
+<script>
+const DEFAULT = {
+  passcode: "0000",
+  coeff: {
+    FM:  { mat:1.0, holder:0.333, pack:3.0,  sil:0.2,  pin:4.0 },
+    FM5: { mat:1.0, holder:0.35,  pack:3.15, sil:0.21, pin:4.2 }
+  },
+  pack:  { mat:50, holder:50, pack:500, sil:25, pin:1200 },
+  price: { mat:3960, holder:715, pack:330, sil:1700, gas:80850, pin_tong:51150 }
+};
+
+function loadCfg(){
+  const raw = localStorage.getItem("bangcho_cfg");
+  if(!raw) return structuredClone(DEFAULT);
+  try { return Object.assign(structuredClone(DEFAULT), JSON.parse(raw)); }
+  catch(e){ return structuredClone(DEFAULT); }
+}
+function saveCfg(cfg){ localStorage.setItem("bangcho_cfg", JSON.stringify(cfg)); }
+const ceil = (x)=>Math.ceil(Number(x)||0);
+const money = (n)=>(Number(n)||0).toLocaleString("ko-KR");
+
+function stocks(){
+  return {
+    mat:ceil(st_mat.value), holder:ceil(st_holder.value), pack:ceil(st_pack.value),
+    sil:ceil(st_sil.value), gas:ceil(st_gas.value), pin:ceil(st_pin.value)
+  };
+}
+
+function compute(mode, len, cfg, st){
+  const c=cfg.coeff[mode], pk=cfg.pack, pr=cfg.price;
+
+  const need_mat=ceil(len*c.mat);
+  const need_holder=ceil(len*c.holder);
+  const need_pack=ceil(len*c.pack);
+  const need_sil=ceil(len*c.sil);
+  const need_pin=ceil(len*c.pin);
+
+  const ord_mat=ceil(need_mat/pk.mat);
+  const ord_holder=ceil(need_holder/pk.holder);
+  const ord_pack=ceil(need_pack/pk.pack);
+  const ord_sil=ceil(need_sil/pk.sil);
+  const ord_pin=ceil(need_pin/pk.pin);
+  const ord_gas=ord_pin;
+
+  const add_mat=Math.max(0,ord_mat-st.mat);
+  const add_holder=Math.max(0,ord_holder-st.holder);
+  const add_pack=Math.max(0,ord_pack-st.pack);
+  const add_sil=Math.max(0,ord_sil-st.sil);
+  const add_pin=Math.max(0,ord_pin-st.pin);
+  const add_gas=Math.max(0,ord_gas-st.gas);
+
+  const need_amt = {
+    mat: need_mat*pr.mat,
+    holder: need_holder*pr.holder,
+    pack: need_pack*pr.pack,
+    sil: need_sil*pr.sil,
+    gas: ord_gas*pr.gas,
+    pin: (need_pin/pk.pin)*pr.pin_tong
+  };
+  const add_amt = {
+    mat: add_mat*pk.mat*pr.mat,
+    holder: add_holder*pk.holder*pr.holder,
+    pack: add_pack*pk.pack*pr.pack,
+    sil: add_sil*pk.sil*pr.sil,
+    gas: add_gas*pr.gas,
+    pin: add_pin*pr.pin_tong
+  };
+
+  const rows = [
+    ["방초매트", need_mat, "m", ord_mat, "롤", st.mat, add_mat, pr.mat, need_amt.mat, add_amt.mat],
+    ["홀더", need_holder, "개", ord_holder, "자루", st.holder, add_holder, pr.holder, need_amt.holder, add_amt.holder],
+    ["팩", need_pack, "개", ord_pack, "자루", st.pack, add_pack, pr.pack, need_amt.pack, add_amt.pack],
+    ["실리콘", need_sil, "개", ord_sil, "박스", st.sil, add_sil, pr.sil, need_amt.sil, add_amt.sil],
+    ["힐티가스", ord_gas, "캔", ord_gas, "캔", st.gas, add_gas, pr.gas, need_amt.gas, add_amt.gas],
+    ["힐티핀", need_pin, "발", ord_pin, "통", st.pin, add_pin, pr.pin_tong, need_amt.pin, add_amt.pin],
+  ];
+
+  const sumNeed = Object.values(need_amt).reduce((a,b)=>a+(Number(b)||0),0);
+  const sumAdd  = Object.values(add_amt).reduce((a,b)=>a+(Number(b)||0),0);
+  return { rows, sumNeed, sumAdd };
+}
+
+function render(el, res){
+  const heads=["자재","필요수량","단위","발주단위","단위","재고","추가발주","단가(VAT)","필요금액","추가발주금액"];
+  let h="<table><thead><tr>"+heads.map(x=>`<th>${x}</th>`).join("")+"</tr></thead><tbody>";
+  for(const r of res.rows){
+    h += "<tr>"
+      + `<td>${r[0]}</td>`
+      + `<td>${money(r[1])}</td>`
+      + `<td>${r[2]}</td>`
+      + `<td>${money(r[3])}</td>`
+      + `<td>${r[4]}</td>`
+      + `<td>${money(r[5])}</td>`
+      + `<td><b>${money(r[6])}</b></td>`
+      + `<td>${money(r[7])}</td>`
+      + `<td>${money(r[8])}</td>`
+      + `<td><b>${money(r[9])}</b></td>`
+      + "</tr>";
+  }
+  h += `</tbody><tfoot><tr><td colspan="8">합계</td><td>${money(res.sumNeed)}</td><td>${money(res.sumAdd)}</td></tr></tfoot></table>`;
+  el.innerHTML = h;
+}
+
+function recalc(){
+  const cfg=loadCfg();
+  const L=ceil(len.value);
+  const st=stocks();
+  const a=compute("FM", L, cfg, st);
+  const b=compute("FM5", L, cfg, st);
+  render(fm, a);
+  render(fm5, b);
+  sum.innerHTML = `<table>
+    <thead><tr><th></th><th>FM</th><th>FM+5%</th></tr></thead>
+    <tbody>
+      <tr><td>필요금액 합계</td><td>${money(a.sumNeed)}</td><td>${money(b.sumNeed)}</td></tr>
+      <tr><td><b>추가발주 금액 합계</b></td><td><b>${money(a.sumAdd)}</b></td><td><b>${money(b.sumAdd)}</b></td></tr>
+    </tbody></table>`;
+}
+
+function openAdmin(){
+  const cfg=loadCfg();
+  const pw=prompt("관리자 비밀번호 (기본 0000)");
+  if(pw!==cfg.passcode){ alert("비밀번호가 올바르지 않습니다."); return; }
+
+  // 아주 간단한 관리자 UI(프롬프트)
+  const newPw = prompt("비밀번호 변경(그대로 두려면 빈칸)", "");
+  if(newPw) cfg.passcode = String(newPw);
+
+  alert("계수/단가/포장단위 수정은 파일 내부 DEFAULT를 바꾸거나, 필요하면 관리자 화면(별도)로 확장 가능합니다.\n현재는 ‘계산만 + 로그인 없음’ 최우선 구성입니다.");
+  saveCfg(cfg);
+}
+
+function resetDefaults(){
+  localStorage.removeItem("bangcho_cfg");
+  recalc();
+  alert("기본값으로 복원했습니다.");
+}
+
+window.addEventListener("load", recalc);
+</script>
+</body>
+</html>

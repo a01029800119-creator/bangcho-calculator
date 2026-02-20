@@ -44,7 +44,6 @@
       cursor:pointer;
       font-weight:700;
       font-size:13px;
-      white-space:nowrap;
     }
     button.primary{background:var(--accent);border-color:transparent;color:#041022}
     button.ghost{background:transparent}
@@ -82,49 +81,74 @@
 
     /* 모바일 가독성: 재고 입력 라벨 크게 */
     .stockLabel{
-      font-size:16px;
-      font-weight:900;
+      font-size:15px;
+      font-weight:800;
       color:#cfe0ff;
       margin-top:10px;
-      letter-spacing:-.2px;
     }
     .stockLabel small{
-      font-size:13px;
+      font-size:12px;
       color:var(--muted);
-      font-weight:800;
+      font-weight:700;
       margin-left:6px;
     }
 
-    table{width:100%;border-collapse:collapse;margin-top:10px}
+    /* ✅ 표(모바일 깨짐 방지) */
+    .tableWrap{
+      width:100%;
+      overflow-x:auto;
+      -webkit-overflow-scrolling:touch;
+      border-radius:12px;
+    }
+    table{width:100%;border-collapse:collapse;margin-top:10px;min-width:820px}
     th,td{
       border-bottom:1px solid var(--line);
       padding:10px 8px;
       text-align:right;
       font-size:13px;
       vertical-align:middle;
-      white-space:nowrap; /* ✅ 헤더/셀 줄바꿈 방지 */
+      white-space:nowrap; /* ✅ 줄바꿈 금지(헤더/자재명 세로찢김 방지) */
     }
-    th:first-child,td:first-child{text-align:left;white-space:normal}
-    th{color:var(--muted);font-weight:900}
+    th:first-child,td:first-child{text-align:left}
+    th{color:var(--muted);font-weight:800}
     tfoot td{font-weight:900}
-    .chip{display:inline-block;background:var(--chip);border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);font-size:12px;font-weight:900}
+    .chip{display:inline-block;background:var(--chip);border:1px solid var(--line);padding:6px 10px;border-radius:999px;color:var(--muted);font-size:12px;font-weight:800}
 
-    /* 자재 표시(예쁘게) */
-    .matCell{display:flex;align-items:center;gap:8px;font-weight:950}
-    .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(74,163,255,.15)}
-    .dot.g{background:var(--accent2);box-shadow:0 0 0 3px rgba(123,211,90,.14)}
-    .dot.r{background:var(--danger);box-shadow:0 0 0 3px rgba(255,107,107,.12)}
-    .matSub{display:block;font-weight:800;color:var(--muted);font-size:12px;margin-top:2px}
+    /* ✅ 자재명 표시(첫 컬럼) */
+    .matName{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+    .dot{width:8px;height:8px;border-radius:50%}
+    .dot.blue{background:#4aa3ff}
+    .dot.green{background:#7bd35a}
+    .dot.red{background:#ff6b6b}
+
+    /* 기준/포장단위 박스(입력 카드 하단) */
+    .miniBox{
+      margin-top:12px;
+      padding:10px 12px;
+      border:1px dashed rgba(155,176,209,.35);
+      border-radius:12px;
+      background:rgba(12,20,38,.35);
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.55;
+    }
+    .miniBox b{color:#cfe0ff}
 
     /* 모달 */
     .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:14px;z-index:50}
     .modal{width:min(980px, 100%);background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
     .modalHead{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
-    .modalHead .ttl{font-weight:950}
+    .modalHead .ttl{font-weight:900}
     .modalBody{padding:14px}
     .modalFoot{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
     .tabs{display:flex;gap:8px;flex-wrap:wrap}
-    .tab{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:950;font-size:12px;cursor:pointer}
+    .tab{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:900;font-size:12px;cursor:pointer}
     .tab.on{background:var(--accent);color:#041022;border-color:transparent}
     .adminNote{margin:10px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
 
@@ -149,6 +173,8 @@
       .noPrint{display:none !important}
       th,td{font-size:11px;padding:7px 6px}
       .card h2{font-size:14px}
+      .tableWrap{overflow:visible}
+      table{min-width:0}
     }
   </style>
 </head>
@@ -163,7 +189,6 @@
         </div>
       </div>
       <div class="actions">
-        <button id="btnInstall" class="ghost" style="display:none">앱 설치</button>
         <button id="btnAdmin" class="ghost">관리자 설정</button>
         <button id="btnPrint" class="ghost">보고용 출력</button>
         <button id="btnImage" class="ghost">이미지 저장</button>
@@ -179,10 +204,14 @@
           <button id="btnCalc" class="primary">계산</button>
           <button id="btnReset" class="ghost">기본값 복원</button>
         </div>
+
         <div class="help">
-          · <b>힐티가스</b>: <b>CEIL(힐티핀 필요수량 / 1200)</b> 기준(가스 1캔=약 1200발 기준)<br/>
+          · <b>힐티가스</b>: <b>CEIL(힐티핀 필요발 / 1200)</b> 기준 (가스 1캔=약 1200발 기준)<br/>
           · 발주단위 수량(롤/자루/박스/통/캔)은 <b>항상 올림(CEIL)</b> 처리합니다.
         </div>
+
+        <!-- ✅ 요청: 산출기준/포장단위 표기 -->
+        <div class="miniBox" id="criteriaBox"></div>
       </div>
 
       <div class="card">
@@ -254,7 +283,7 @@
         <div id="panel_sec" style="display:none"></div>
 
         <div class="adminNote">
-          · 배포용 기본값은 문서 기준으로 고정되어 있습니다. (홀더 50개/자루, 실리콘 25개/박스, 힐티핀 1200발/통)<br/>
+          · 배포용 기본값은 “갑지” 기준으로 맞춰두었습니다. (홀더 50개/자루, 실리콘 25개/박스, 힐티핀 1200발/통)<br/>
           · 단가/금액은 <b>관리자 인증(비번)</b>이 되어야 표에 표시됩니다.
         </div>
       </div>
@@ -266,37 +295,34 @@
 
 <script>
 /** =========================
- *  기본 설정(배포용 고정값) - 문서 기준
+ *  기본 설정(배포용 고정값) - 갑지 기준
  *  ========================= */
 const DEFAULT_CFG = {
   adminPass: "1004",
-
-  // 1m당 소요 계수 (FM 기준)
+  // 1m당 소요 계수 (기본 FM 기준)
   coef: {
-    mat_m_per_m: 1.0,      // 방초매트: 1m당 1m
-    holder_per_m: 1/3,     // 홀더: 3m당 1개 => 0.333...
-    pack_per_m: 3.0,       // 팩: 1m당 3개
-    silicone_per_m: 0.2,   // 실리콘: 1m당 0.2개
-    pin_per_m: 4.0         // 힐티핀: 1m당 4발
+    mat_m_per_m: 1.0,              // 방초매트: 1m당 1m
+    holder_per_m: 1/3,             // 홀더: 1m당 0.3333개 (3m당 1개)
+    pack_per_m: 3.0,               // 팩: 1m당 3개
+    silicone_per_m: 0.2,           // 실리콘: 1m당 0.2개
+    pin_per_m: 4.0                 // 힐티핀: 1m당 4발
   },
-
-  // 포장단위(발주단위)
+  // 포장수량 (발주단위 1개에 포함되는 "기본단위" 수량)
   pack: {
-    mat_m_per_roll: 50,        // 1롤 = 50m
-    holder_per_bag: 50,        // ✅ 1자루 = 50개 (중요!)
-    pack_per_bag: 500,         // 1자루 = 500개
-    silicone_per_box: 25,      // 1박스 = 25개
-    pin_per_tong: 1200         // 1통 = 1200발
+    mat_m_per_roll: 50,            // 1롤 = 50m
+    holder_per_bag: 50,            // ✅ 1자루 = 50개 (갑지 기준)
+    pack_per_bag: 500,             // 1자루 = 500개
+    silicone_per_box: 25,          // 1박스 = 25개
+    pin_per_tong: 1200             // 1통 = 1200발
   },
-
-  // 단가(VAT 포함) - 기본단위 기준
+  // 단가(VAT 포함) - "기본단위" 기준
   price: {
-    mat_per_m: 3960,        // /m
-    holder_per_ea: 715,     // /개
-    pack_per_ea: 330,       // /개
-    silicone_per_ea: 1700,  // /개
-    gas_per_can: 80850,     // /캔
-    pin_per_tong: 51150     // /통(1200발)
+    mat_per_m: 3960,
+    holder_per_ea: 715,
+    pack_per_ea: 330,
+    silicone_per_ea: 1700,
+    gas_per_can: 80850,
+    pin_per_tong: 51150
   }
 };
 
@@ -319,7 +345,9 @@ function loadCfg(){
     return structuredClone(DEFAULT_CFG);
   }
 }
-function saveCfg(cfg){ localStorage.setItem(KEY_CFG, JSON.stringify(cfg)); }
+function saveCfg(cfg){
+  localStorage.setItem(KEY_CFG, JSON.stringify(cfg));
+}
 function isAdmin(){ return localStorage.getItem(KEY_AUTH) === "1"; }
 
 function requireAdmin(){
@@ -354,7 +382,23 @@ function readStocks(){
 }
 
 /** =========================
- *  계산 로직
+ *  기준/포장단위 표시(입력 카드 하단)
+ *  ========================= */
+function renderCriteria(){
+  const cfg = loadCfg();
+  const html = `
+    <div><b>산출기준(FM)</b></div>
+    <div>· 홀더 <b>${Number(cfg.coef.holder_per_m).toFixed(4)}</b>개/m · 팩 <b>${Number(cfg.coef.pack_per_m).toFixed(2)}</b>개/m · 실리콘 <b>${Number(cfg.coef.silicone_per_m).toFixed(2)}</b>개/m · 힐티핀 <b>${Number(cfg.coef.pin_per_m).toFixed(1)}</b>발/m</div>
+    <div style="margin-top:6px"><b>포장단위(발주)</b></div>
+    <div>· 방초매트 <b>${cfg.pack.mat_m_per_roll}</b>m/롤 · 홀더 <b>${cfg.pack.holder_per_bag}</b>개/자루 · 팩 <b>${cfg.pack.pack_per_bag}</b>개/자루 · 실리콘 <b>${cfg.pack.silicone_per_box}</b>개/박스</div>
+    <div>· 힐티: 핀 <b>${cfg.pack.pin_per_tong}</b>발/통, 가스는 <b>CEIL(핀/1200)</b> 캔</div>
+    <div style="margin-top:6px"><b>FM+5%</b>는 FM 산출값에 <b>5% 로스</b> 일괄 반영</div>
+  `;
+  document.getElementById("criteriaBox").innerHTML = html;
+}
+
+/** =========================
+ *  핵심 계산 로직
  *  ========================= */
 function compute(lenM, factor){
   const cfg = loadCfg();
@@ -370,9 +414,9 @@ function compute(lenM, factor){
     pin_ea: L * cfg.coef.pin_per_m
   };
 
-  // 핀(발) -> 통(1200발) / 가스(1200발당 1캔)
+  // 힐티가스: 핀 기반 (1200발당 1캔)
+  const needGasCan = ceil(need.pin_ea / cfg.pack.pin_per_tong);
   const needPinTong = ceil(need.pin_ea / cfg.pack.pin_per_tong);
-  const needGasCan  = needPinTong;
 
   // 발주단위 필요수량(올림)
   const req = {
@@ -394,12 +438,14 @@ function compute(lenM, factor){
     pin_tong: max0(req.pin_tong - st.pin_tong)
   };
 
-  // 추가발주를 기본단위로 환산(금액용)
+  // 추가발주를 "기본단위"로 환산(금액용)
   const addBase = {
     mat_m: add.mat_roll * cfg.pack.mat_m_per_roll,
     holder_ea: add.holder_bag * cfg.pack.holder_per_bag,
     pack_ea: add.pack_bag * cfg.pack.pack_per_bag,
-    silicone_ea: add.silicone_box * cfg.pack.silicone_per_box
+    silicone_ea: add.silicone_box * cfg.pack.silicone_per_box,
+    gas_can: add.gas_can * 1,
+    pin_tong: add.pin_tong * 1
   };
 
   // 필요금액(기본단위 기준 / 핀은 통 기준 / 가스는 캔 기준)
@@ -435,15 +481,6 @@ function compute(lenM, factor){
   };
 }
 
-function fmtNeed(val, unit){
-  const n = Number(val);
-  if(!isFinite(n)) return "";
-  if(unit === "캔") return String(Math.round(n));
-  // 소수 필요 가능: 최대 2자리, .00 제거
-  const s = n.toFixed(2).replace(/\.00$/,'');
-  return s;
-}
-
 function renderTable(targetId, data){
   const cfg = loadCfg();
   const admin = isAdmin();
@@ -457,77 +494,101 @@ function renderTable(targetId, data){
   }
 
   const rows = [
-    { key:"mat", name:"방초매트", dot:"g", need:data.need.mat_m, needUnit:"m", orderUnit:"롤", req:data.req.mat_roll, stock:data.st.mat_roll, add:data.add.mat_roll,
-      price:cfg.price.mat_per_m, priceUnit:"/m", needAmt:data.amtNeed.mat, addAmt:data.amtAdd.mat },
-    { key:"holder", name:"홀더", dot:"", need:data.need.holder_ea, needUnit:"개", orderUnit:"자루", req:data.req.holder_bag, stock:data.st.holder_bag, add:data.add.holder_bag,
-      price:cfg.price.holder_per_ea, priceUnit:"/개", needAmt:data.amtNeed.holder, addAmt:data.amtAdd.holder },
-    { key:"pack", name:"팩", dot:"", need:data.need.pack_ea, needUnit:"개", orderUnit:"자루", req:data.req.pack_bag, stock:data.st.pack_bag, add:data.add.pack_bag,
-      price:cfg.price.pack_per_ea, priceUnit:"/개", needAmt:data.amtNeed.pack, addAmt:data.amtAdd.pack },
-    { key:"sil", name:"실리콘", dot:"", need:data.need.silicone_ea, needUnit:"개", orderUnit:"박스", req:data.req.silicone_box, stock:data.st.silicone_box, add:data.add.silicone_box,
-      price:cfg.price.silicone_per_ea, priceUnit:"/개", needAmt:data.amtNeed.silicone, addAmt:data.amtAdd.silicone },
-    { key:"gas", name:"힐티가스", dot:"r", need:data.need.gas_can, needUnit:"캔", orderUnit:"캔", req:data.req.gas_can, stock:data.st.gas_can, add:data.add.gas_can,
-      price:cfg.price.gas_per_can, priceUnit:"/캔", needAmt:data.amtNeed.gas, addAmt:data.amtAdd.gas },
-    { key:"pin", name:"힐티핀", dot:"r", need:data.need.pin_ea, needUnit:"발", orderUnit:"통", req:data.req.pin_tong, stock:data.st.pin_tong, add:data.add.pin_tong,
-      price:cfg.price.pin_per_tong, priceUnit:"/통(1200발)", needAmt:data.amtNeed.pin, addAmt:data.amtAdd.pin },
+    { key:"mat", name:"방초매트", dot:"blue",
+      need: data.need.mat_m, needUnit:"m",
+      orderUnit:"롤", unitQty: data.req.mat_roll, stock: data.st.mat_roll, add: data.add.mat_roll,
+      price: cfg.price.mat_per_m, priceUnit:"/m",
+      needAmt: data.amtNeed.mat, addAmt: data.amtAdd.mat
+    },
+    { key:"holder", name:"홀더", dot:"green",
+      need: data.need.holder_ea, needUnit:"개",
+      orderUnit:"자루", unitQty: data.req.holder_bag, stock: data.st.holder_bag, add: data.add.holder_bag,
+      price: cfg.price.holder_per_ea, priceUnit:"/개",
+      needAmt: data.amtNeed.holder, addAmt: data.amtAdd.holder
+    },
+    { key:"pack", name:"팩", dot:"blue",
+      need: data.need.pack_ea, needUnit:"개",
+      orderUnit:"자루", unitQty: data.req.pack_bag, stock: data.st.pack_bag, add: data.add.pack_bag,
+      price: cfg.price.pack_per_ea, priceUnit:"/개",
+      needAmt: data.amtNeed.pack, addAmt: data.amtAdd.pack
+    },
+    { key:"sil", name:"실리콘", dot:"green",
+      need: data.need.silicone_ea, needUnit:"개",
+      orderUnit:"박스", unitQty: data.req.silicone_box, stock: data.st.silicone_box, add: data.add.silicone_box,
+      price: cfg.price.silicone_per_ea, priceUnit:"/개",
+      needAmt: data.amtNeed.silicone, addAmt: data.amtAdd.silicone
+    },
+    { key:"gas", name:"힐티가스", dot:"red",
+      need: data.need.gas_can, needUnit:"캔",
+      orderUnit:"캔", unitQty: data.req.gas_can, stock: data.st.gas_can, add: data.add.gas_can,
+      price: cfg.price.gas_per_can, priceUnit:"/캔",
+      needAmt: data.amtNeed.gas, addAmt: data.amtAdd.gas
+    },
+    { key:"pin", name:"힐티핀", dot:"red",
+      need: data.need.pin_ea, needUnit:"발",
+      orderUnit:"통", unitQty: data.req.pin_tong, stock: data.st.pin_tong, add: data.add.pin_tong,
+      price: cfg.price.pin_per_tong, priceUnit:"/통(1200발)",
+      needAmt: data.amtNeed.pin, addAmt: data.amtAdd.pin
+    },
   ];
 
   const sumNeed = rows.reduce((a,r)=>a+(admin?Number(r.needAmt):0),0);
   const sumAdd  = rows.reduce((a,r)=>a+(admin?Number(r.addAmt):0),0);
 
   const html = `
-    <table>
-      <thead>
-        <tr>
-          <th>자재</th>
-          <th>필요수량</th>
-          <th>단위</th>
-          <th>발주단위</th>
-          <th>단위수량</th>
-          <th>재고</th>
-          <th>추가발주</th>
-          <th>${admin ? "단가(VAT)" : "단가"}</th>
-          <th>필요금액</th>
-          <th>추가발주금액</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map(r=>{
-          const needVal = fmtNeed(r.need, r.needUnit);
-          const priceStr = admin ? `${Number(r.price).toLocaleString("ko-KR")}${r.priceUnit}` : "-";
-          const needAmt = admin ? money(r.needAmt) : "-";
-          const addAmt  = admin ? money(r.addAmt)  : "-";
-          const dotClass = r.dot ? `dot ${r.dot}` : "dot";
-          return `
+    <div class="tableWrap">
+      <table>
+        <thead>
           <tr>
-            <td>
-              <div class="matCell">
-                <span class="${dotClass}"></span>
-                <div>
-                  ${r.name}
-                  <span class="matSub">${r.needUnit === "m" ? "1m당 1m" : ""}</span>
+            <th>자재</th>
+            <th>필요수량</th>
+            <th>단위</th>
+            <th>발주단위</th>
+            <th>단위수량</th>
+            <th>재고</th>
+            <th>추가발주</th>
+            <th>${admin ? "단가(VAT)" : "단가"}</th>
+            <th>필요금액</th>
+            <th>추가발주금액</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>{
+            const needVal = (r.needUnit==="캔")
+              ? String(r.need)
+              : (Number(r.need).toFixed(2).replace(/\.00$/,''));
+            const priceStr = admin ? `${Number(r.price).toLocaleString("ko-KR")}${r.priceUnit}` : "-";
+            const needAmt = admin ? money(r.needAmt) : "-";
+            const addAmt  = admin ? money(r.addAmt)  : "-";
+            return `
+            <tr>
+              <td>
+                <div class="matName">
+                  <span class="dot ${r.dot}"></span>
+                  <span>${r.name}</span>
                 </div>
-              </div>
-            </td>
-            <td>${needVal}</td>
-            <td>${r.needUnit}</td>
-            <td>${r.orderUnit}</td>
-            <td>${Number(r.req).toLocaleString("ko-KR")}</td>
-            <td>${Number(r.stock).toLocaleString("ko-KR")}</td>
-            <td style="font-weight:950">${Number(r.add).toLocaleString("ko-KR")}</td>
-            <td>${priceStr}</td>
-            <td style="font-weight:950">${needAmt}</td>
-            <td style="font-weight:950">${addAmt}</td>
-          </tr>`;
-        }).join("")}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="8" style="text-align:left">합계</td>
-          <td style="font-weight:950">${admin ? money(sumNeed) : "-"}</td>
-          <td style="font-weight:950">${admin ? money(sumAdd) : "-"}</td>
-        </tr>
-      </tfoot>
-    </table>
+              </td>
+              <td>${needVal}</td>
+              <td>${r.needUnit}</td>
+              <td>${r.orderUnit}</td>
+              <td>${Number(r.unitQty).toLocaleString("ko-KR")}</td>
+              <td>${Number(r.stock).toLocaleString("ko-KR")}</td>
+              <td style="font-weight:900">${Number(r.add).toLocaleString("ko-KR")}</td>
+              <td>${priceStr}</td>
+              <td style="font-weight:900">${needAmt}</td>
+              <td style="font-weight:900">${addAmt}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="8" style="text-align:left">합계</td>
+            <td style="font-weight:900">${admin ? money(sumNeed) : "-"}</td>
+            <td style="font-weight:900">${admin ? money(sumAdd) : "-"}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   `;
   document.getElementById(targetId).innerHTML = html;
 }
@@ -575,13 +636,13 @@ function adminPanelHTML(cfg, mode){
       <table class="adminTable">
         <thead><tr><th style="width:160px">항목</th><th>계수</th><th style="width:220px">설명</th></tr></thead>
         <tbody>
-          <tr><th>홀더</th><td><input id="c_holder" type="number" step="0.0001" value="${cfg.coef.holder_per_m}"></td><td>1m당 필요 개수(3m당 1개)</td></tr>
+          <tr><th>홀더</th><td><input id="c_holder" type="number" step="0.0001" value="${cfg.coef.holder_per_m}"></td><td>1m당 필요 개수</td></tr>
           <tr><th>팩</th><td><input id="c_pack" type="number" step="0.0001" value="${cfg.coef.pack_per_m}"></td><td>1m당 필요 개수</td></tr>
           <tr><th>실리콘</th><td><input id="c_sil" type="number" step="0.0001" value="${cfg.coef.silicone_per_m}"></td><td>1m당 필요 개수</td></tr>
           <tr><th>힐티핀</th><td><input id="c_pin" type="number" step="0.0001" value="${cfg.coef.pin_per_m}"></td><td>1m당 필요 발</td></tr>
         </tbody>
       </table>
-      <div class="adminNote">※ 힐티가스는 “핀/1200(=통 수)” 기준 자동 계산입니다.</div>
+      <div class="adminNote">※ 힐티가스는 “핀/1200” 기준 자동 계산입니다.</div>
     `;
   }
   if(isSec){
@@ -598,7 +659,7 @@ function adminPanelHTML(cfg, mode){
         <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
         <label>관리자 비밀번호 변경</label>
         <input id="newPass" placeholder="새 비밀번호" />
-        <div class="help">※ 비밀번호는 로컬스토리지에 저장됩니다(이 브라우저/기기 기준).</div>
+        <div class="help">※ 비밀번호/설정은 로컬스토리지에 저장됩니다(이 브라우저/기기 기준).</div>
       </div>
     `;
   }
@@ -635,6 +696,7 @@ function openAdmin(){
     }
   }, 0);
 }
+
 function closeAdmin(){ document.getElementById("ov").style.display = "none"; }
 
 function switchTab(tab){
@@ -655,6 +717,7 @@ function recalc(){
   const fm5 = compute(lenM, 1.05);
   renderTable("tbl_fm", fm);
   renderTable("tbl_fm5", fm5);
+  renderCriteria(); // ✅ 하단 기준표 갱신
 }
 
 async function saveImage(){
@@ -666,25 +729,6 @@ async function saveImage(){
   a.click();
 }
 function doPrint(){ window.print(); }
-
-/** =========================
- *  PWA 설치 버튼 (지원 브라우저에서만)
- *  ========================= */
-let __deferredPrompt = null;
-window.addEventListener("beforeinstallprompt", (e)=>{
-  e.preventDefault();
-  __deferredPrompt = e;
-  const btn = document.getElementById("btnInstall");
-  btn.style.display = "inline-block";
-  btn.disabled = false;
-});
-document.getElementById("btnInstall").onclick = async ()=>{
-  if(!__deferredPrompt) return;
-  __deferredPrompt.prompt();
-  await __deferredPrompt.userChoice;
-  __deferredPrompt = null;
-  document.getElementById("btnInstall").style.display = "none";
-};
 
 /** =========================
  *  이벤트 바인딩
@@ -753,6 +797,7 @@ document.getElementById("btnSaveAdmin").onclick = ()=>{
 document.getElementById("btnPrint").onclick = doPrint;
 document.getElementById("btnImage").onclick = saveImage;
 
+// 재고/구간 입력 변경 시 즉시 재계산(디바운스)
 ["stk_mat","stk_holder","stk_pack","stk_sil","stk_gas","stk_pin","len"].forEach(id=>{
   document.getElementById(id).addEventListener("input", ()=>{
     clearTimeout(window.__t);
@@ -760,6 +805,7 @@ document.getElementById("btnImage").onclick = saveImage;
   });
 });
 
+// 최초 로드
 window.addEventListener("load", recalc);
 </script>
 </body>
